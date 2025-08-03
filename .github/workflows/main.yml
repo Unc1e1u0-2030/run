@@ -1,0 +1,40 @@
+name: SAP CF App KeepAlive
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+
+
+jobs:
+  keepalive:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download and Extract cf8-cli
+        run: |
+          wget -O cf8-cli.tgz "https://packages.cloudfoundry.org/stable?release=linux64-binary"
+          mkdir cf8-cli
+          tar -xzf cf8-cli.tgz -C cf8-cli
+          CF_PATH=$(find cf8-cli -type f -name 'cf' -o -name 'cf8')
+          if [ -z "$CF_PATH" ]; then
+            CF_PATH=$(find cf8-cli -type f | grep -E '/cf$|/cf8$' | head -n 1)
+          fi
+          echo "Found cf at $CF_PATH"
+          sudo cp $CF_PATH /usr/local/bin/cf
+          sudo chmod +x /usr/local/bin/cf
+          cf --version
+
+      - name: Keepalive App
+        env:
+          CF_USERNAME: ${{ secrets.CF_USERNAME }}
+          CF_PASSWORD: ${{ secrets.CF_PASSWORD }}
+          CF_API: ${{ secrets.CF_API }}
+          CF_ORG: ${{ secrets.CF_ORG }}
+          CF_SPACE: ${{ secrets.CF_SPACE }}
+          CF_APP: ${{ secrets.CF_APP }}
+        run: |
+          cf api $CF_API
+          cf auth $CF_USERNAME $CF_PASSWORD
+          cf target -o "$CF_ORG" -s "$CF_SPACE"
+          cf start $CF_APP || echo "App already started or error"
+
